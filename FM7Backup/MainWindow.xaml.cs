@@ -133,5 +133,31 @@ namespace FM7Backup
                 StatusText.Content = "Backup complete.";
             }
         }
+
+        private void SaveLocationBrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                System.Windows.Forms.DialogResult result = dialog.ShowDialog();
+
+                if (result == System.Windows.Forms.DialogResult.OK)
+                {
+                    SaveLocationBox.Text = dialog.SelectedPath;
+                }
+            }
+        }
+
+        private void BackupLocationBrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                System.Windows.Forms.DialogResult result = dialog.ShowDialog();
+
+                if (result == System.Windows.Forms.DialogResult.OK)
+                {
+                    BackupLocationBox.Text = dialog.SelectedPath;
+                }
+            }
+        }
     }
 }
