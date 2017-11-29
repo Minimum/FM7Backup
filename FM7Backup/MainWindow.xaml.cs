@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
@@ -27,14 +28,20 @@ namespace FM7Backup
         {
             InitializeComponent();
 
+            Worker = new BackgroundWorker();
+            Worker.DoWork += RunBackup;
+            Worker.RunWorkerCompleted += CompleteBackup;
+
             Initialize();
         }
 
         private AppSettings Settings { get; set; }
 
+        private BackgroundWorker Worker { get; set; }
+
         // Yeah I know, quick and dirty code in the view class
 
-        public void Initialize()
+        private void Initialize()
         {
             Settings = SettingsDao.LoadSettings("fm7backupsettings.json");
 
@@ -72,6 +79,51 @@ namespace FM7Backup
             return;
         }
 
+        private void RunBackup(Object sender, DoWorkEventArgs e)
+        {
+            BackupArgs args = (BackupArgs) e.Argument;
+            String status = "";
+            bool success = false;
+
+            try
+            {
+                // Copy dir (thanks https://stackoverflow.com/a/3822913)
+                foreach (string dirPath in Directory.GetDirectories(args.SaveLocation, "*",
+                    SearchOption.AllDirectories))
+                    Directory.CreateDirectory(dirPath.Replace(args.SaveLocation, args.BackupLocation));
+
+                foreach (string newPath in Directory.GetFiles(args.SaveLocation, "*.*",
+                    SearchOption.AllDirectories))
+                    File.Copy(newPath, newPath.Replace(args.SaveLocation, args.BackupLocation), true);
+
+                success = true;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception);
+
+                status = "Error: " + exception.Message;
+            }
+
+            if (success)
+            {
+                status = "Backup complete.";
+            }
+
+            e.Result = status;
+
+            return;
+        }
+
+        private void CompleteBackup(object sender, RunWorkerCompletedEventArgs e)
+        {
+            StatusText.Content = e.Result;
+
+            BackupButton.IsEnabled = true;
+
+            return;
+        }
+
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             Settings.SaveFileLocation = SaveLocationBox.Text;
@@ -90,9 +142,12 @@ namespace FM7Backup
             Settings.DateType = DateType.Unix;
         }
 
-        // RIP async
         private void BackupButton_Click(object sender, RoutedEventArgs e)
         {
+            // Don't run if worker is already busy
+            if (Worker.IsBusy)
+                return;
+
             String backupLocation = BackupLocationBox.Text + "\\";
 
             StatusText.Content = "Running backup...";
@@ -106,32 +161,11 @@ namespace FM7Backup
                 backupLocation += DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             }
 
-            bool success = false;
+            BackupButton.IsEnabled = false;
 
-            try
-            {
-                // Copy dir (thanks https://stackoverflow.com/a/3822913)
-                foreach (string dirPath in Directory.GetDirectories(SaveLocationBox.Text, "*",
-                    SearchOption.AllDirectories))
-                    Directory.CreateDirectory(dirPath.Replace(SaveLocationBox.Text, backupLocation));
+            BackupArgs workerArgs = new BackupArgs(SaveLocationBox.Text, backupLocation);
 
-                foreach (string newPath in Directory.GetFiles(SaveLocationBox.Text, "*.*",
-                    SearchOption.AllDirectories))
-                    File.Copy(newPath, newPath.Replace(SaveLocationBox.Text, backupLocation), true);
-
-                success = true;
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine(exception);
-
-                StatusText.Content = "Error: " + exception.Message;
-            }
-
-            if (success)
-            {
-                StatusText.Content = "Backup complete.";
-            }
+            Worker.RunWorkerAsync(workerArgs);
         }
 
         private void SaveLocationBrowseButton_Click(object sender, RoutedEventArgs e)
