@@ -29,7 +29,9 @@ namespace FM7Backup
             InitializeComponent();
 
             Worker = new BackgroundWorker();
+            Worker.WorkerReportsProgress = true;
             Worker.DoWork += RunBackup;
+            Worker.ProgressChanged += BackupProgress;
             Worker.RunWorkerCompleted += CompleteBackup;
 
             Initialize();
@@ -84,17 +86,38 @@ namespace FM7Backup
             BackupArgs args = (BackupArgs) e.Argument;
             String status = "";
             bool success = false;
+            BackgroundWorker worker = (BackgroundWorker) sender;
 
             try
             {
+                worker.ReportProgress(0, "Copying directories: ");
+
                 // Copy dir (thanks https://stackoverflow.com/a/3822913)
-                foreach (string dirPath in Directory.GetDirectories(args.SaveLocation, "*",
-                    SearchOption.AllDirectories))
+                string[] directories = Directory.GetDirectories(args.SaveLocation, "*", SearchOption.AllDirectories);
+                int directoryCount = directories.Length;
+                int directoriesCopied = 0;
+
+                foreach (string dirPath in directories)
+                {
                     Directory.CreateDirectory(dirPath.Replace(args.SaveLocation, args.BackupLocation));
 
-                foreach (string newPath in Directory.GetFiles(args.SaveLocation, "*.*",
-                    SearchOption.AllDirectories))
+                    directoriesCopied++;
+
+                    worker.ReportProgress(0, "Copying directories (" + directoriesCopied + " / " + directoryCount + ")");
+                }
+
+                string[] files = Directory.GetFiles(args.SaveLocation, "*.*", SearchOption.AllDirectories);
+                int fileCount = files.Length;
+                int filesCopied = 0;
+
+                foreach (string newPath in files)
+                {
                     File.Copy(newPath, newPath.Replace(args.SaveLocation, args.BackupLocation), true);
+
+                    filesCopied++;
+
+                    worker.ReportProgress(0, "Copying files (" + filesCopied + " / " + fileCount + ")");
+                }
 
                 success = true;
             }
@@ -111,6 +134,13 @@ namespace FM7Backup
             }
 
             e.Result = status;
+
+            return;
+        }
+
+        private void BackupProgress(object sender, ProgressChangedEventArgs e)
+        {
+            StatusText.Content = e.UserState;
 
             return;
         }
